@@ -5,12 +5,16 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Pressable,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { CategoryCard, CategoryCardConfig } from "@/components/CategoryCard";
 import { Colors } from "@/constants/colors";
+import { useAuth } from "@/contexts/AuthContext";
 
 const CATEGORIES: CategoryCardConfig[] = [
   {
@@ -72,20 +76,47 @@ const dateStr = today.toLocaleDateString("fr-FR", {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user, logout } = useAuth();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  function handleLogout() {
+    Alert.alert(
+      "Déconnexion",
+      "Êtes-vous sûr de vouloir vous déconnecter ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Se déconnecter",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await logout();
+            router.replace("/login");
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerGreeting}>Bonjour</Text>
-          <Text style={styles.headerDate}>{dateStr}</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>
+              {user?.name?.charAt(0)?.toUpperCase() ?? "U"}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.headerGreeting}>Bonjour, {user?.name?.split(" ")[0]}</Text>
+            <Text style={styles.headerDate} numberOfLines={1}>{dateStr}</Text>
+          </View>
         </View>
-        <View style={styles.headerIcon}>
-          <Ionicons name="leaf" size={22} color={Colors.primary} />
-        </View>
+        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={Colors.textSecondary} />
+        </Pressable>
       </View>
 
       <View style={styles.statsRow}>
@@ -139,24 +170,46 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
-  headerGreeting: {
-    fontSize: 13,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.textSecondary,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
   },
-  headerDate: {
-    fontSize: 18,
-    fontFamily: "Poppins_700Bold",
-    color: Colors.text,
-    textTransform: "capitalize",
-  },
-  headerIcon: {
-    width: 44,
-    height: 44,
+  avatarCircle: {
+    width: 42,
+    height: 42,
     borderRadius: 14,
-    backgroundColor: Colors.successLight,
+    backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.white,
+  },
+  headerGreeting: {
+    fontSize: 15,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.text,
+  },
+  headerDate: {
+    fontSize: 12,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textTransform: "capitalize",
+    maxWidth: 200,
+  },
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   statsRow: {
     flexDirection: "row",

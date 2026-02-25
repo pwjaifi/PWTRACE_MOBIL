@@ -17,7 +17,7 @@ import { FormDropdown } from "@/components/forms/FormDropdown";
 import { FormTextInput } from "@/components/forms/FormTextInput";
 import { FormDateTimePicker } from "@/components/forms/FormDateTimePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
-import { ApiService } from "@/services/ApiService";
+import { LocalStorageService } from "@/services/LocalStorageService";
 import { MOCK_FARMS, getCompteursByFarmAndType } from "@/services/mockData";
 import type { CompteurType } from "@/models";
 
@@ -71,8 +71,8 @@ export default function CompteurScreen() {
     }
     setLoading(true);
     try {
-      // API integration point — calls ApiService.createCompteurObservation
-      await ApiService.createCompteurObservation({
+      // Saves locally for offline-first sync — use SyncService to send to backend
+      await LocalStorageService.saveCompteurObservation({
         compteurType: compteurType as CompteurType,
         farmId,
         compteurId,
@@ -80,11 +80,13 @@ export default function CompteurScreen() {
         vCompteur: Number(vCompteur),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Succès", "Relevé compteur enregistré.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Enregistré localement",
+        "Le relevé a été sauvegardé. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch {
-      Alert.alert("Erreur", "Impossible d'enregistrer le relevé. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder le relevé. Réessayez.");
     } finally {
       setLoading(false);
     }
@@ -211,7 +213,7 @@ export default function CompteurScreen() {
       </FormSection>
 
       <FormSubmitButton
-        label="Enregistrer le relevé"
+        label="Enregistrer localement"
         onPress={handleSubmit}
         loading={loading}
         icon="save-outline"

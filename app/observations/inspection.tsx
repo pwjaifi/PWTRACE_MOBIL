@@ -21,7 +21,7 @@ import { FormTextInput } from "@/components/forms/FormTextInput";
 import { FormMultiImagePicker } from "@/components/forms/FormImagePicker";
 import { FormDateTimePicker } from "@/components/forms/FormDateTimePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
-import { ApiService } from "@/services/ApiService";
+import { LocalStorageService } from "@/services/LocalStorageService";
 import {
   ALL_SERRES,
   getSerreInfo,
@@ -70,9 +70,9 @@ function ObservationBlockItem({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const typeOptions = getObservationTypesByCategory(
-    block.categoryId
-  ).map((t) => ({ id: t.id, label: t.name }));
+  const typeOptions = getObservationTypesByCategory(block.categoryId).map(
+    (t) => ({ id: t.id, label: t.name })
+  );
 
   return (
     <View style={blockStyles.container}>
@@ -307,8 +307,7 @@ export default function InspectionScreen() {
         {
           text: "Supprimer",
           style: "destructive",
-          onPress: () =>
-            setBlocks((prev) => prev.filter((b) => b.id !== id)),
+          onPress: () => setBlocks((prev) => prev.filter((b) => b.id !== id)),
         },
       ]
     );
@@ -331,8 +330,8 @@ export default function InspectionScreen() {
     }
     setLoading(true);
     try {
-      // API integration point — calls ApiService.createInspectionObservation
-      await ApiService.createInspectionObservation({
+      // Saves locally for offline-first sync — use SyncService to send to backend
+      await LocalStorageService.saveInspectionObservation({
         observationDate,
         serreId,
         farmId: serreInfo?.farm?.id ?? "",
@@ -341,11 +340,13 @@ export default function InspectionScreen() {
         observationBlocks: blocks,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Succès", "Inspection enregistrée.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Enregistré localement",
+        "L'inspection a été sauvegardée. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch {
-      Alert.alert("Erreur", "Impossible d'enregistrer l'inspection. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder l'inspection. Réessayez.");
     } finally {
       setLoading(false);
     }
@@ -438,7 +439,7 @@ export default function InspectionScreen() {
       </View>
 
       <FormSubmitButton
-        label="Enregistrer l'inspection"
+        label="Enregistrer localement"
         onPress={handleSubmit}
         loading={loading}
         icon="save-outline"

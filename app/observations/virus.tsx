@@ -18,7 +18,7 @@ import { FormMultiSelect } from "@/components/forms/FormMultiSelect";
 import { FormTextInput } from "@/components/forms/FormTextInput";
 import { FormImagePicker } from "@/components/forms/FormImagePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
-import { ApiService } from "@/services/ApiService";
+import { LocalStorageService } from "@/services/LocalStorageService";
 import { LINES } from "@/models";
 import type { SeverityLevel } from "@/models";
 
@@ -70,8 +70,8 @@ export default function VirusScreen() {
 
     setLoading(true);
     try {
-      // API integration point — calls ApiService.createVirusObservation
-      await ApiService.createVirusObservation({
+      // Saves locally for offline-first sync — use SyncService to send to backend
+      await LocalStorageService.saveVirusObservation({
         farmId,
         secteurId,
         serreId,
@@ -83,13 +83,13 @@ export default function VirusScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        "Succès",
-        "Observation virus enregistrée avec succès.",
+        "Enregistré localement",
+        "L'observation a été sauvegardée. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
         [{ text: "OK", onPress: () => router.back() }]
       );
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Erreur", "Impossible d'enregistrer l'observation. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder l'observation. Réessayez.");
     } finally {
       setLoading(false);
     }
@@ -180,7 +180,7 @@ export default function VirusScreen() {
       </FormSection>
 
       <FormSubmitButton
-        label="Enregistrer l'observation"
+        label="Enregistrer localement"
         onPress={handleSubmit}
         loading={loading}
         icon="save-outline"

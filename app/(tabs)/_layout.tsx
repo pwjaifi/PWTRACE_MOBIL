@@ -15,6 +15,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "leaf", selected: "leaf.fill" }} />
         <Label>Observations</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="sync">
+        <Icon sf={{ default: "arrow.triangle.2.circlepath", selected: "arrow.triangle.2.circlepath" }} />
+        <Label>Sync</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <Icon sf={{ default: "clock", selected: "clock.fill" }} />
         <Label>Historique</Label>
@@ -71,6 +75,18 @@ function ClassicTabLayout() {
               <SymbolView name="leaf.fill" tintColor={color} size={22} />
             ) : (
               <Ionicons name="leaf" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="sync"
+        options={{
+          title: "Sync",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="arrow.triangle.2.circlepath" tintColor={color} size={22} />
+            ) : (
+              <Ionicons name="cloud-upload-outline" size={22} color={color} />
             ),
         }}
       />

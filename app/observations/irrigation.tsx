@@ -17,7 +17,7 @@ import { FormMultiSelect } from "@/components/forms/FormMultiSelect";
 import { FormTextInput } from "@/components/forms/FormTextInput";
 import { FormDateTimePicker } from "@/components/forms/FormDateTimePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
-import { ApiService } from "@/services/ApiService";
+import { LocalStorageService } from "@/services/LocalStorageService";
 import { LINES } from "@/models";
 
 const LINE_OPTIONS = LINES.map((l) => ({ id: l.id, label: l.name }));
@@ -43,9 +43,9 @@ export default function IrrigationScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  function validateNumber(val: string, field: string, label: string, errors: Record<string, string>) {
+  function validateNumber(val: string, field: string, label: string, errs: Record<string, string>) {
     if (!val.trim() || isNaN(Number(val)) || Number(val) < 0)
-      errors[field] = `${label} invalide`;
+      errs[field] = `${label} invalide`;
   }
 
   function validate(): boolean {
@@ -71,8 +71,8 @@ export default function IrrigationScreen() {
     }
     setLoading(true);
     try {
-      // API integration point — calls ApiService.createIrrigationObservation
-      await ApiService.createIrrigationObservation({
+      // Saves locally for offline-first sync — use SyncService to send to backend
+      await LocalStorageService.saveIrrigationObservation({
         farmId,
         secteurId,
         serreId,
@@ -86,11 +86,13 @@ export default function IrrigationScreen() {
         selectedLines,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Succès", "Observation irrigation enregistrée.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Enregistré localement",
+        "L'observation a été sauvegardée. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch {
-      Alert.alert("Erreur", "Impossible d'enregistrer l'observation. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder l'observation. Réessayez.");
     } finally {
       setLoading(false);
     }
@@ -225,7 +227,7 @@ export default function IrrigationScreen() {
       </FormSection>
 
       <FormSubmitButton
-        label="Enregistrer l'observation"
+        label="Enregistrer localement"
         onPress={handleSubmit}
         loading={loading}
         icon="save-outline"
