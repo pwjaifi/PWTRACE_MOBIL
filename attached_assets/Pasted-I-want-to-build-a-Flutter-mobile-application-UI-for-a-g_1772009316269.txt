@@ -1,0 +1,134 @@
+I want to build a Flutter mobile application UI for a greenhouse farm management system.
+
+IMPORTANT:
+- Only UI and clean architecture.
+- No real API implementation.
+- Create placeholder methods for API.
+- The app should be scalable and maintainable, ready for future backend and offline features.
+
+The app has 6 observation categories and each has a different form.
+
+----------------------------------
+CATEGORY: VIRUS
+----------------------------------
+Fields:
+- Select Farm (dropdown)
+- Select Secteur (filtered by farm)
+- Select Serre (filtered by secteur, allow "All Serres")
+- Number of Plants (numeric input)
+- Severity (dropdown: 0,1,2,3)
+- Select Line(s) (multi-select)
+- Description (text area)
+- Upload Image (single image)
+- Include proper validation for all required fields
+- Use reusable widgets for dropdowns, multi-selects, date/time pickers, and image picker
+
+----------------------------------
+CATEGORY: AUXILIAIRE
+----------------------------------
+Fields:
+- Select Farm
+- Select Secteur (filtered)
+- Select Serre (filtered)
+- Select Type Observation
+- Population (radio buttons: Low / Medium / High)
+- Description
+- Upload Image (optional)
+- Proper validation
+- Reusable widgets for dropdowns, radio buttons, and image picker
+
+----------------------------------
+CATEGORY: RAVAGEURS
+----------------------------------
+Fields:
+- Select Farm
+- Select Secteur
+- Select Serre
+- Select Type Observation
+- Select Line(s)
+- Severity (0-3 dropdown)
+- Description
+- Upload Image
+- Proper validation
+- Reusable components
+
+----------------------------------
+CATEGORY: IRRIGATION
+----------------------------------
+Fields:
+- Select Farm
+- Select Secteur
+- Select Serre
+- Supply VQV (number input)
+- Supply EC (number)
+- Supply PH (number)
+- Drainage VQV (number)
+- Drainage EC (number)
+- Drainage PH (number)
+- Observation Date & Time (datetime picker)
+- Select Line(s)
+- Proper validation
+- Reusable components
+
+----------------------------------
+CATEGORY: INSPECTION
+----------------------------------
+Fields:
+- Date d'observation
+- Select Serre
+   When Serre selected:
+      Automatically display its Farm and Secteur (read-only)
+- Select Culture
+- Button: "Add New Observation"
+
+When clicking "Add New Observation":
+- Create dynamic observation block with:
+   - Select Category of Observation
+   - Select Type Observation (filtered by category)
+   - Status (radio buttons: Todo / Normal / Danger)
+   - Add Pictures (max 4 images)
+   - Description
+- User can add multiple observation blocks before saving
+- Dynamic block UI should be scrollable and manageable
+- Use reusable components for dropdowns, radio buttons, and image picker
+
+----------------------------------
+CATEGORY: COMPTEUR
+----------------------------------
+Fields:
+- Select Type Observation (IN / OUT)
+- Select Farm (filtered by type)
+- When Farm selected → display Compteurs of this farm
+- Select Compteur
+- Date & Time
+- V-Compteur value (numeric)
+- Proper validation
+- Reusable components
+
+----------------------------------
+
+Architecture Requirements:
+- Feature-based folder structure
+- Clean separation:
+   - screens
+   - widgets
+   - models
+   - services
+- Use Provider for state management
+- Create ApiService with empty methods for:
+   - login()
+   - createVirusObservation()
+   - createAuxiliaireObservation()
+   - createRavageursObservation()
+   - createIrrigationObservation()
+   - createInspectionObservation()
+   - createCompteurObservation()
+- All forms should use reusable widgets where possible (dropdowns, radio buttons, date pickers, image pickers, multi-select)
+- Proper validation for required fields
+- Clean modern UI with consistent styling
+- Keep code organized and scalable
+- Add comments in code to indicate where API integration will go
+- Prepare structure for offline sync in the future (local database layer can be added later)
+
+Do NOT implement backend logic.
+Only UI and structure ready for API integration later.
