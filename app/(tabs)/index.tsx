@@ -1,11 +1,127 @@
-// template
-import { StyleSheet, Text, View } from "react-native";
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { CategoryCard, CategoryCardConfig } from "@/components/CategoryCard";
+import { Colors } from "@/constants/colors";
 
-export default function TabOneScreen() {
+const CATEGORIES: CategoryCardConfig[] = [
+  {
+    id: "virus",
+    title: "Virus",
+    subtitle: "Surveiller les infections virales, sévérité et distribution",
+    icon: "bug-outline",
+    colors: Colors.categoryColors.virus,
+    route: "/observations/virus",
+  },
+  {
+    id: "auxiliaire",
+    title: "Auxiliaire",
+    subtitle: "Suivi des insectes auxiliaires et population",
+    icon: "leaf-outline",
+    colors: Colors.categoryColors.auxiliaire,
+    route: "/observations/auxiliaire",
+  },
+  {
+    id: "ravageurs",
+    title: "Ravageurs",
+    subtitle: "Détection et évaluation des ravageurs par serre",
+    icon: "warning-outline",
+    colors: Colors.categoryColors.ravageurs,
+    route: "/observations/ravageurs",
+  },
+  {
+    id: "irrigation",
+    title: "Irrigation",
+    subtitle: "Mesures VQV, EC et PH supply et drainage",
+    icon: "water-outline",
+    colors: Colors.categoryColors.irrigation,
+    route: "/observations/irrigation",
+  },
+  {
+    id: "inspection",
+    title: "Inspection",
+    subtitle: "Inspection multi-blocs avec photos et statuts",
+    icon: "clipboard-outline",
+    colors: Colors.categoryColors.inspection,
+    route: "/observations/inspection",
+  },
+  {
+    id: "compteur",
+    title: "Compteur",
+    subtitle: "Relevés compteurs entrée et sortie par ferme",
+    icon: "speedometer-outline",
+    colors: Colors.categoryColors.compteur,
+    route: "/observations/compteur",
+  },
+];
+
+const today = new Date();
+const dateStr = today.toLocaleDateString("fr-FR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Your Replit app will be here</Text>
-      <Text style={styles.text}>Please wait until we finish building it</Text>
+    <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerGreeting}>Bonjour</Text>
+          <Text style={styles.headerDate}>{dateStr}</Text>
+        </View>
+        <View style={styles.headerIcon}>
+          <Ionicons name="leaf" size={22} color={Colors.primary} />
+        </View>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>6</Text>
+          <Text style={styles.statLabel}>Catégories</Text>
+        </View>
+        <View style={[styles.statCard, styles.statCardAccent]}>
+          <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
+          <Text style={[styles.statNumber, styles.statNumberWhite]}>Prêt</Text>
+          <Text style={[styles.statLabel, styles.statLabelWhite]}>Système</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>3</Text>
+          <Text style={styles.statLabel}>Fermes</Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Catégories d'observation</Text>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: bottomPad + 100 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {CATEGORIES.map((cat) => (
+          <CategoryCard
+            key={cat.id}
+            config={cat}
+            onPress={() => router.push(cat.route as any)}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -13,17 +129,91 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  headerGreeting: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+  },
+  headerDate: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    textTransform: "capitalize",
+  },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: Colors.successLight,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 20,
   },
-  text: {
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    gap: 2,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: Colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  statCardAccent: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  statNumber: {
+    fontSize: 22,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+  },
+  statNumberWhite: {
+    color: Colors.white,
     fontSize: 16,
-    textAlign: "center",
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textTertiary,
+  },
+  statLabelWhite: {
+    color: "rgba(255,255,255,0.7)",
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
   },
 });
