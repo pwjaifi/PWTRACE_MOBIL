@@ -173,7 +173,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View>
-            <Text style={styles.headerGreeting}>Boooooooooooonjour, {user?.name?.split(" ")[0]}</Text>
+            <Text style={styles.headerGreeting}>Booooooooo3ooonjour, {user?.name?.split(" ")[0]}</Text>
             <Text style={styles.headerDate} numberOfLines={1}>{dateStr}</Text>
           </View>
         </View>
