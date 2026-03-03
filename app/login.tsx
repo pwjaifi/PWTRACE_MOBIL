@@ -8,6 +8,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,13 +18,12 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
-  FadeIn,
   FadeInDown,
 } from "react-native-reanimated";
-import { Colors } from "@/constants/colors";
 import { FormTextInput } from "@/components/forms/FormTextInput";
 import { useAuth } from "@/contexts/AuthContext";
+
+import { Colors } from "@/constants/colors";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -34,7 +34,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [accountDisabled, setAccountDisabled] = useState(false);
 
   const btnScale = useSharedValue(1);
   const btnAnimStyle = useAnimatedStyle(() => ({
@@ -49,7 +48,6 @@ export default function LoginScreen() {
     if (!email.trim()) newErrors.email = "L'email est requis";
     else if (!email.includes("@")) newErrors.email = "Email invalide";
     if (!password) newErrors.password = "Le mot de passe est requis";
-    else if (password.length < 3) newErrors.password = "Mot de passe trop court";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -60,38 +58,47 @@ export default function LoginScreen() {
       return;
     }
 
-    setAccountDisabled(false);
     setLoading(true);
     btnScale.value = withSpring(0.97);
 
     try {
       const result = await login(email.trim(), password);
-
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace("/(tabs)");
-      } else if (result.reason === "account_disabled") {
-        setAccountDisabled(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      } else if (result.reason === "invalid_credentials") {
-        setErrors({ general: "Email ou mot de passe incorrect." });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       } else {
-        setErrors({ general: "Erreur réseau. Veuillez réessayer." });
+        const msg = result.reason === "network_error"
+          ? "Erreur de connexion au serveur. Vérifiez votre internet."
+          : "Email ou mot de passe incorrect.";
+        setErrors({ general: msg });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-    } catch {
-      setErrors({ general: "Une erreur est survenue. Veuillez réessayer." });
+
+    } catch (err: any) {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || "NOT SET (localhost fallback)";
+      setErrors({ general: `Erreur: ${err.message}` });
+      console.error("Login attempt failed to:", apiUrl, err);
+
+      // Show an alert with the URL to help debug on the real phone
+      Alert.alert(
+        "Détails de l'erreur",
+        `URL cible: ${apiUrl}\n\nMessage: ${err.message}`,
+        [{ text: "OK" }]
+      );
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
       btnScale.value = withSpring(1);
     }
   }
 
+  const logoImg = require("../assets/images/logo.png");
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         style={styles.container}
@@ -102,127 +109,90 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.duration(600).delay(100)} style={styles.logoArea}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="leaf" size={36} color={Colors.white} />
-          </View>
-          <Text style={styles.appName}>GreenhouseManager</Text>
-          <Text style={styles.appTagline}>Gestion des serres agricoles</Text>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.duration(600).delay(250)} style={styles.card}>
-          <Text style={styles.cardTitle}>Connexion</Text>
-          <Text style={styles.cardSubtitle}>
-            Connectez-vous pour accéder à vos observations
-          </Text>
-
-          {accountDisabled ? (
-            <View style={styles.disabledBanner}>
-              <Ionicons name="ban-outline" size={20} color={Colors.error} />
-              <View style={styles.disabledBannerText}>
-                <Text style={styles.disabledBannerTitle}>Compte désactivé</Text>
-                <Text style={styles.disabledBannerBody}>
-                  Votre compte est inactif. Veuillez contacter votre
-                  administrateur pour le réactiver.
-                </Text>
-              </View>
+        <Animated.View entering={FadeInDown.duration(800)} style={styles.loginCard}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoWrap}>
+              <Image
+                source={logoImg}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-          ) : null}
+            <Text style={styles.title}>PEPPERWORLD TRACE</Text>
+            <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+          </View>
 
           {errors.general ? (
-            <View style={styles.errorBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={18}
-                color={Colors.error}
-              />
-              <Text style={styles.errorBannerText}>{errors.general}</Text>
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{errors.general}</Text>
             </View>
           ) : null}
 
-          <View style={styles.fields}>
+          {/* Form Fields */}
+          <View style={styles.form}>
             <FormTextInput
               label="Email"
-              required
-              placeholder="nom@ferme.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
+              placeholder="Entrez votre email"
+              leftIcon="mail"
               value={email}
               onChangeText={(v) => {
                 setEmail(v);
-                setErrors((e) => ({ ...e, email: "" }));
+                setErrors({});
               }}
               error={errors.email}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
             />
 
-            <View>
+            <View style={styles.passwordContainer}>
               <FormTextInput
-                label="Mot de passe"
-                required
-                placeholder="••••••••"
+                label="Password"
+                placeholder="Entrez votre mot de passe"
+                leftIcon="lock-closed"
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={(v) => {
                   setPassword(v);
-                  setErrors((e) => ({ ...e, password: "" }));
+                  setErrors({});
                 }}
                 error={errors.password}
               />
               <Pressable
-                style={styles.eyeBtn}
-                onPress={() => setShowPassword((s) => !s)}
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
               >
                 <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  name={showPassword ? "eye-off" : "eye"}
                   size={20}
                   color={Colors.textTertiary}
                 />
               </Pressable>
             </View>
-          </View>
 
-          <Animated.View style={btnAnimStyle}>
-            <Pressable
-              style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
-              onPress={handleLogin}
-              onPressIn={() => {
-                btnScale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
-              }}
-              onPressOut={() => {
-                btnScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-              }}
-              disabled={loading}
-            >
-              {loading ? (
-                <View style={styles.loginBtnInner}>
-                  <Ionicons name="sync-outline" size={18} color={Colors.white} />
-                  <Text style={styles.loginBtnText}>Connexion en cours...</Text>
+            <Animated.View style={[btnAnimStyle, { marginTop: 10 }]}>
+              <Pressable
+                style={[styles.loginButton, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                onPressIn={() => (btnScale.value = withSpring(0.98))}
+                onPressOut={() => (btnScale.value = withSpring(1))}
+                disabled={loading}
+              >
+                <View style={styles.buttonInner}>
+                  <Ionicons name="log-in-outline" size={22} color={Colors.white} />
+                  <Text style={styles.buttonText}>SE CONNECTER</Text>
                 </View>
-              ) : (
-                <View style={styles.loginBtnInner}>
-                  <Ionicons name="log-in-outline" size={18} color={Colors.white} />
-                  <Text style={styles.loginBtnText}>Se connecter</Text>
-                </View>
-              )}
+              </Pressable>
+            </Animated.View>
+
+            <Pressable style={styles.forgotBtn}>
+              <View style={styles.forgotRow}>
+
+
+              </View>
             </Pressable>
-          </Animated.View>
-
-          <Text style={styles.forgotPassword}>Mot de passe oublié ?</Text>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.duration(600).delay(400)}
-          style={styles.footer}
-        >
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={14}
-            color={Colors.textTertiary}
-          />
-          <Text style={styles.footerText}>
-            Connexion sécurisée — données de votre ferme protégées
-          </Text>
+          </View>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -235,152 +205,113 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    paddingHorizontal: 24,
-    gap: 28,
-  },
-  logoArea: {
+    paddingHorizontal: 20,
     alignItems: "center",
-    gap: 12,
-    paddingTop: 20,
+    justifyContent: "center",
+    minHeight: "100%",
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+  loginCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    width: "100%",
+    maxWidth: 450,
+    padding: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 28,
+  },
+  logoWrap: {
+    width: 64,
+    height: 64,
+    marginBottom: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  title: {
+    fontSize: 26,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.primary,
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 8,
+  },
+  form: {
+    gap: 20,
+  },
+  passwordContainer: {
+    position: "relative",
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+  },
+  loginButton: {
     backgroundColor: Colors.primary,
+    height: 56,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  appName: {
-    fontSize: 24,
-    fontFamily: "Poppins_700Bold",
-    color: Colors.text,
-  },
-  appTagline: {
-    fontSize: 13,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.textSecondary,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 24,
-    gap: 20,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontFamily: "Poppins_700Bold",
-    color: Colors.text,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.textSecondary,
-    marginTop: -10,
-    lineHeight: 19,
-  },
-  disabledBanner: {
-    flexDirection: "row",
-    gap: 12,
-    backgroundColor: Colors.errorLight,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.error + "30",
-  },
-  disabledBannerText: {
-    flex: 1,
-    gap: 4,
-  },
-  disabledBannerTitle: {
-    fontSize: 14,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.error,
-  },
-  disabledBannerBody: {
-    fontSize: 12,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.error,
-    lineHeight: 18,
-  },
-  errorBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.errorLight,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: Colors.error + "20",
-  },
-  errorBannerText: {
-    fontSize: 13,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.error,
-    flex: 1,
-  },
-  fields: {
-    gap: 16,
-  },
-  eyeBtn: {
-    position: "absolute",
-    right: 14,
-    bottom: 13,
-  },
-  loginBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  loginBtnDisabled: {
+  buttonDisabled: {
     opacity: 0.7,
-    shadowOpacity: 0,
-    elevation: 0,
   },
-  loginBtnInner: {
+  buttonInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
-  loginBtnText: {
-    fontSize: 16,
-    fontFamily: "Poppins_600SemiBold",
+  buttonText: {
     color: Colors.white,
+    fontSize: 15,
+    fontFamily: "Poppins_700Bold",
   },
-  forgotPassword: {
-    fontSize: 13,
-    fontFamily: "Poppins_500Medium",
-    color: Colors.primary,
-    textAlign: "center",
+  forgotBtn: {
+    alignSelf: "center",
+    marginTop: 10,
   },
-  footer: {
+  forgotRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
   },
-  footerText: {
-    fontSize: 11,
+  forgotText: {
+    fontSize: 13,
+    fontFamily: "Poppins_500Medium",
+    color: Colors.textSecondary,
+  },
+  errorBox: {
+    backgroundColor: "#FDECEA",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FADBD8",
+  },
+  errorText: {
+    color: "#C0392B",
+    fontSize: 13,
     fontFamily: "Poppins_400Regular",
-    color: Colors.textTertiary,
+    textAlign: "center",
   },
 });

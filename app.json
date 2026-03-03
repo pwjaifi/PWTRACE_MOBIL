@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "GreenhouseManager",
+    "name": "Pepper World",
     "slug": "my-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "myapp",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -21,10 +21,12 @@
       "package": "com.myapp",
       "adaptiveIcon": {
         "backgroundColor": "#1A6B3C",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+        "foregroundImage": "./assets/images/logo.png"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -41,14 +43,22 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow GreenhouseManager to access your photos.",
-          "cameraPermission": "Allow GreenhouseManager to use your camera."
+          "photosPermission": "Allow Pepper World to access your photos.",
+          "cameraPermission": "Allow Pepper World to use your camera."
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "8e9a8323-8999-4a92-af29-8a1982fd8416"
+      }
     }
   }
 }

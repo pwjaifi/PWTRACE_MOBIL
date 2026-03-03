@@ -6,149 +6,147 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
+import { LocalStorageService, type HistoryItem as SyncedHistoryItem, type PendingItem } from "@/services/LocalStorageService";
 
-interface HistoryItem {
+interface UnifiedHistoryItem {
   id: string;
   category: string;
   categoryKey: keyof typeof Colors.categoryColors;
   farm: string;
   serre: string;
   date: string;
+  timestamp: number;
   icon: keyof typeof Ionicons.glyphMap;
-  status: "submitted" | "pending";
+  status: "online" | "offline";
 }
 
-const DEMO_HISTORY: HistoryItem[] = [
-  {
-    id: "1",
-    category: "Virus",
-    categoryKey: "virus",
-    farm: "Ferme Nord",
-    serre: "Serre 2",
-    date: "Aujourd'hui, 09:30",
-    icon: "bug-outline",
-    status: "submitted",
-  },
-  {
-    id: "2",
-    category: "Irrigation",
-    categoryKey: "irrigation",
-    farm: "Ferme Sud",
-    serre: "Serre 6",
-    date: "Aujourd'hui, 07:15",
-    icon: "water-outline",
-    status: "submitted",
-  },
-  {
-    id: "3",
-    category: "Ravageurs",
-    categoryKey: "ravageurs",
-    farm: "Ferme Nord",
-    serre: "Serre 1",
-    date: "Hier, 14:00",
-    icon: "warning-outline",
-    status: "submitted",
-  },
-  {
-    id: "4",
-    category: "Inspection",
-    categoryKey: "inspection",
-    farm: "Ferme Est",
-    serre: "Serre 10",
-    date: "Hier, 10:45",
-    icon: "clipboard-outline",
-    status: "submitted",
-  },
-  {
-    id: "5",
-    category: "Auxiliaire",
-    categoryKey: "auxiliaire",
-    farm: "Ferme Nord",
-    serre: "Serre 3",
-    date: "Il y a 2 jours",
-    icon: "leaf-outline",
-    status: "submitted",
-  },
-  {
-    id: "6",
-    category: "Compteur",
-    categoryKey: "compteur",
-    farm: "Ferme Sud",
-    serre: "-",
-    date: "Il y a 2 jours",
-    icon: "speedometer-outline",
-    status: "submitted",
-  },
-];
+const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  virus: "bug-outline",
+  auxiliaire: "leaf-outline",
+  ravageurs: "warning-outline",
+  irrigation: "water-outline",
+  inspection: "clipboard-outline",
+  compteur: "speedometer-outline",
+};
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const [history, setHistory] = React.useState<UnifiedHistoryItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const loadAllHistory = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const pending = await LocalStorageService.getAllPending();
+      const synced = await LocalStorageService.getSyncedHistory();
+
+      const unified: UnifiedHistoryItem[] = [
+        ...pending.map((p) => ({
+          id: p.id,
+          category: p.id.split("-")[0],
+          categoryKey: p.id.split("-")[0] as any,
+          farm: p.data.farmId || "Inconnu",
+          serre: p.data.serreId || "-",
+          date: new Date(p.savedAt).toLocaleString("fr-FR"),
+          timestamp: new Date(p.savedAt).getTime(),
+          icon: CATEGORY_ICONS[p.id.split("-")[0]] || "help-outline",
+          status: "offline" as const,
+        })),
+        ...synced.map((s) => ({
+          id: s.id,
+          category: s.category,
+          categoryKey: s.category as any,
+          farm: s.data.farmId || "Inconnu",
+          serre: s.data.serreId || "-",
+          date: new Date(s.syncedAt).toLocaleString("fr-FR"),
+          timestamp: new Date(s.syncedAt).getTime(),
+          icon: CATEGORY_ICONS[s.category] || "help-outline",
+          status: "online" as const,
+        })),
+      ].sort((a, b) => b.timestamp - a.timestamp);
+
+      setHistory(unified);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadAllHistory();
+    }, [loadAllHistory])
+  );
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Historique</Text>
-        <Text style={styles.headerSubtitle}>Observations récentes</Text>
+        <Text style={styles.headerSubtitle}>Flux d'activité en temps réel</Text>
       </View>
 
-      <View style={styles.infoBar}>
-        <Ionicons name="information-circle-outline" size={16} color={Colors.textSecondary} />
-        <Text style={styles.infoText}>
-          L'historique complet sera disponible après intégration API
-        </Text>
+      <View style={styles.statsOverview}>
+        <View style={styles.miniStat}>
+          <Text style={styles.miniStatVal}>{history.filter(h => h.status === "offline").length}</Text>
+          <Text style={styles.miniStatLabel}>Offline</Text>
+        </View>
+        <View style={styles.miniStat}>
+          <Text style={styles.miniStatVal}>{history.filter(h => h.status === "online").length}</Text>
+          <Text style={styles.miniStatLabel}>Online</Text>
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: bottomPad + 100 },
+          { paddingBottom: bottomPad + 40 },
         ]}
       >
-        <Text style={styles.sectionLabel}>AUJOURD'HUI</Text>
+        {history.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="documents-outline" size={60} color={Colors.border} />
+            <Text style={styles.emptyText}>Aucune observation enregistrée</Text>
+          </View>
+        ) : (
+          history.map((item) => {
+            const colors = Colors.categoryColors[item.categoryKey] || { bg: "#eee", icon: "#999" };
+            const isOnline = item.status === "online";
 
-        {DEMO_HISTORY.map((item) => {
-          const colors = Colors.categoryColors[item.categoryKey];
-          return (
-            <View key={item.id} style={styles.card}>
-              <View style={[styles.cardIcon, { backgroundColor: colors.bg }]}>
-                <Ionicons name={item.icon} size={20} color={colors.icon} />
-              </View>
-              <View style={styles.cardContent}>
-                <View style={styles.cardTop}>
-                  <Text style={styles.cardCategory}>{item.category}</Text>
-                  <View style={styles.statusBadge}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={12}
-                      color={Colors.success}
-                    />
-                    <Text style={styles.statusText}>Envoyé</Text>
-                  </View>
+            return (
+              <View key={item.id} style={styles.card}>
+                <View style={[styles.cardIcon, { backgroundColor: colors.bg }]}>
+                  <Ionicons name={item.icon} size={20} color={colors.icon} />
                 </View>
-                <Text style={styles.cardFarm}>
-                  {item.farm}
-                  {item.serre !== "-" ? ` · ${item.serre}` : ""}
-                </Text>
-                <Text style={styles.cardDate}>{item.date}</Text>
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTop}>
+                    <Text style={styles.cardCategory}>{item.category.charAt(0).toUpperCase() + item.category.slice(1)}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: isOnline ? Colors.successLight : Colors.warningLight }]}>
+                      <Ionicons
+                        name={isOnline ? "cloud-done" : "phone-portrait-outline"}
+                        size={12}
+                        color={isOnline ? Colors.success : Colors.warning}
+                      />
+                      <Text style={[styles.statusText, { color: isOnline ? Colors.success : Colors.warning }]}>
+                        {isOnline ? "Cloud" : "Device"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.cardFarm}>
+                    Ferme: {item.farm} {item.serre !== "-" ? `· Serre: ${item.serre}` : ""}
+                  </Text>
+                  <Text style={styles.cardDate}>{item.date}</Text>
+                </View>
               </View>
-            </View>
-          );
-        })}
-
-        <View style={styles.emptyHint}>
-          <Ionicons name="cloud-upload-outline" size={36} color={Colors.border} />
-          <Text style={styles.emptyHintTitle}>Synchronisation en attente</Text>
-          <Text style={styles.emptyHintText}>
-            Une fois l'API connectée, vos observations seront synchronisées
-            automatiquement.
-          </Text>
-        </View>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );
@@ -162,10 +160,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontFamily: "Poppins_700Bold",
     color: Colors.text,
   },
@@ -173,34 +171,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Poppins_400Regular",
     color: Colors.textSecondary,
-    marginTop: 2,
   },
-  infoBar: {
+  statsOverview: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 16,
+  },
+  miniStat: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.successLight,
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
   },
-  infoText: {
+  miniStatVal: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.primary,
+  },
+  miniStatLabel: {
     fontSize: 12,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.textSecondary,
-    flex: 1,
+    fontFamily: "Poppins_500Medium",
+    color: Colors.textTertiary,
   },
   scrollContent: {
     paddingHorizontal: 20,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.textTertiary,
-    letterSpacing: 1,
-    marginBottom: 10,
   },
   card: {
     flexDirection: "row",
@@ -218,8 +219,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardIcon: {
-    width: 46,
-    height: 46,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -241,16 +242,15 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: Colors.successLight,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   statusText: {
-    fontSize: 11,
-    fontFamily: "Poppins_500Medium",
-    color: Colors.success,
+    fontSize: 10,
+    fontFamily: "Poppins_700Bold",
+    textTransform: "uppercase",
   },
   cardFarm: {
     fontSize: 12,
@@ -261,25 +261,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_400Regular",
     color: Colors.textTertiary,
-    marginTop: 2,
   },
-  emptyHint: {
+  emptyState: {
     alignItems: "center",
-    paddingVertical: 32,
-    gap: 8,
-    marginTop: 12,
+    justifyContent: "center",
+    paddingTop: 100,
+    gap: 12,
   },
-  emptyHintTitle: {
+  emptyText: {
     fontSize: 14,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.textSecondary,
-  },
-  emptyHintText: {
-    fontSize: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "Poppins_500Medium",
     color: Colors.textTertiary,
     textAlign: "center",
-    lineHeight: 18,
-    maxWidth: 280,
   },
 });

@@ -15,6 +15,7 @@ import {
 } from "@expo-google-fonts/poppins";
 import { Colors } from "@/constants/colors";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { DataProvider } from "@/contexts/DataContext";
 import { ActivityIndicator, View } from "react-native";
 
 SplashScreen.preventAutoHideAsync();
@@ -109,11 +110,13 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <DataProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <RootLayoutNav />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </DataProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

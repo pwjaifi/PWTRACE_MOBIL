@@ -1,6 +1,6 @@
 import { LocalStorageService } from "./LocalStorageService";
 import { ApiService } from "./ApiService";
-import type { ObservationCategory } from "@/models";
+import { LINES, type ObservationCategory } from "@/models";
 
 export type SyncStatus = "idle" | "syncing" | "success" | "error";
 
@@ -14,19 +14,6 @@ export interface SyncResult {
  * SyncService
  *
  * Handles syncing locally-stored observations to the backend API.
- * Each category has its own sync method for independent, targeted sync.
- *
- * Architecture notes:
- * - Each method reads pending items from LocalStorageService
- * - Sends each to the appropriate ApiService method
- * - On success: removes from local storage
- * - On failure: increments retry counter, leaves in local storage
- *
- * Future improvements:
- * - Add exponential backoff for retries
- * - Add network connectivity check before syncing
- * - Add conflict resolution for items modified on server
- * - Add background sync via expo-task-manager
  */
 
 async function syncCategory<T>(
@@ -39,9 +26,9 @@ async function syncCategory<T>(
 
   for (const item of pending) {
     try {
-      // API integration point — each item is sent to the backend
       const response = await apiCall(item.data);
       if (response.success) {
+        await LocalStorageService.addToHistory(category, item.data);
         await LocalStorageService.removeItemById(category, item.id);
         result.synced++;
       } else {
@@ -57,54 +44,118 @@ async function syncCategory<T>(
   return result;
 }
 
+const TOTAL_LINES_COUNT = 20;
+
 export const SyncService = {
   /**
-   * @api POST /observations/virus (batch or per-item)
    * Syncs all pending virus observations to the backend.
    */
   syncVirusObservations: (): Promise<SyncResult> =>
     syncCategory(
       LocalStorageService.getVirusPending,
       "virus",
-      ApiService.createVirusObservation
+      (data) => {
+        const nbr = Number(data.numberOfPlants);
+        const count = isNaN(nbr) ? 0 : nbr;
+        let autoSeverity = 0;
+        if (count >= 1 && count <= 50) autoSeverity = 1;
+        else if (count >= 51 && count <= 100) autoSeverity = 2;
+        else if (count > 100) autoSeverity = 3;
+
+        const lineValue = (data.selectedLines || []).length >= TOTAL_LINES_COUNT ? "all" : data.selectedLines;
+
+        return ApiService.saveObservation("virus", {
+          ferme_id: data.farmId,
+          secteur_id: data.secteurId,
+          serre_id: [data.serreId],
+          virus: count,
+          severity: autoSeverity,
+          line: lineValue,
+          description: data.description,
+          photo: data.imageUri,
+          date: new Date().toISOString()
+        });
+      }
     ),
 
   /**
-   * @api POST /observations/auxiliaire
    * Syncs all pending auxiliaire observations to the backend.
    */
   syncAuxiliaireObservations: (): Promise<SyncResult> =>
     syncCategory(
       LocalStorageService.getAuxiliairePending,
       "auxiliaire",
-      ApiService.createAuxiliaireObservation
+      (data) => {
+        // Map population id ("1", "2", "3") to Numeric severity handled by backend
+        const severityValue = Number(data.population);
+        const lineValue = (data.selectedLines || []).length >= TOTAL_LINES_COUNT ? "all" : data.selectedLines;
+
+        return ApiService.saveObservation("auxiliaire", {
+          ferme_id: data.farmId,
+          secteur_id: data.secteurId,
+          serre_id: [data.serreId],
+          type_observation_id: data.typeObservationId,
+          severity: severityValue,
+          line: lineValue,
+          description: data.description,
+          photo: data.imageUri,
+          date: new Date().toISOString()
+        });
+      }
     ),
 
   /**
-   * @api POST /observations/ravageurs
    * Syncs all pending ravageurs observations to the backend.
    */
   syncRavageursObservations: (): Promise<SyncResult> =>
     syncCategory(
       LocalStorageService.getRavageursPending,
       "ravageurs",
-      ApiService.createRavageursObservation
+      (data) => {
+        const lineValue = (data.selectedLines || []).length >= TOTAL_LINES_COUNT ? "all" : data.selectedLines;
+
+        return ApiService.saveObservation("ravageurs", {
+          ferme_id: data.farmId,
+          secteur_id: data.secteurId,
+          serre_id: [data.serreId],
+          type_observation_id: data.typeObservationId,
+          severity: data.severity,
+          line: lineValue,
+          description: data.description,
+          photo: data.imageUri,
+          date: new Date().toISOString()
+        });
+      }
     ),
 
   /**
-   * @api POST /observations/irrigation
    * Syncs all pending irrigation observations to the backend.
    */
   syncIrrigationObservations: (): Promise<SyncResult> =>
     syncCategory(
       LocalStorageService.getIrrigationPending,
       "irrigation",
-      ApiService.createIrrigationObservation
+      (data) => {
+        const lineValue = (data.selectedLines || []).length >= TOTAL_LINES_COUNT ? "all" : data.selectedLines;
+
+        return ApiService.saveObservation("irrigation", {
+          ferme_id: data.farmId,
+          secteur_id: data.secteurId,
+          serre_id: [data.serreId],
+          line: lineValue,
+          date: data.observationDateTime,
+          apportVQV: data.supplyVQV,
+          apportEC: data.supplyEC,
+          apportPH: data.supplyPH,
+          drainageVQV: data.drainageVQV,
+          drainageEC: data.drainageEC,
+          drainagePH: data.drainagePH
+        });
+      }
     ),
 
   /**
-   * @api POST /observations/inspection
-   * Syncs all pending inspection observations to the backend.
+   * Syncs pending inspection observations.
    */
   syncInspectionObservations: (): Promise<SyncResult> =>
     syncCategory(
@@ -114,8 +165,7 @@ export const SyncService = {
     ),
 
   /**
-   * @api POST /observations/compteur
-   * Syncs all pending compteur observations to the backend.
+   * Syncs pending compteur observations.
    */
   syncCompteurObservations: (): Promise<SyncResult> =>
     syncCategory(
@@ -126,7 +176,6 @@ export const SyncService = {
 
   /**
    * Sync all categories at once.
-   * Returns an aggregate result per category.
    */
   syncAll: async (): Promise<Record<ObservationCategory, SyncResult>> => {
     const [virus, auxiliaire, ravageurs, irrigation, inspection, compteur] =

@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storage, StorageHelper } from "@/lib/storage";
 import type {
   VirusObservation,
   AuxiliaireObservation,
@@ -13,11 +13,7 @@ import type {
  * LocalStorageService
  *
  * Handles persisting observations locally (offline-first).
- * Each observation is saved as a "pending sync" item in AsyncStorage.
- *
- * When backend integration is ready:
- * - SyncService reads from these lists and POSTs to the API
- * - On success, items are removed from local storage
+ * Each observation is saved as a "pending sync" item in MMKV.
  *
  * Key format: "pending_<category>" → JSON array of PendingItem<T>
  */
@@ -38,10 +34,19 @@ const KEYS: Record<ObservationCategory, string> = {
   compteur: "pending_compteur",
 };
 
+const HISTORY_KEY = "synced_history";
+const MAX_HISTORY_ITEMS = 50;
+
+export interface HistoryItem {
+  id: string;
+  category: ObservationCategory;
+  data: any;
+  syncedAt: string;
+}
+
 async function getPendingItems<T>(category: ObservationCategory): Promise<PendingItem<T>[]> {
   try {
-    const raw = await AsyncStorage.getItem(KEYS[category]);
-    return raw ? JSON.parse(raw) : [];
+    return (await StorageHelper.getObject<PendingItem<T>[]>(KEYS[category])) || [];
   } catch {
     return [];
   }
@@ -56,17 +61,17 @@ async function savePendingItem<T>(category: ObservationCategory, data: T): Promi
     retries: 0,
   };
   items.push(newItem);
-  await AsyncStorage.setItem(KEYS[category], JSON.stringify(items));
+  await StorageHelper.setObject(KEYS[category], items);
 }
 
 async function removeItemById(category: ObservationCategory, id: string): Promise<void> {
   const items = await getPendingItems<unknown>(category);
   const updated = items.filter((item) => item.id !== id);
-  await AsyncStorage.setItem(KEYS[category], JSON.stringify(updated));
+  await StorageHelper.setObject(KEYS[category], updated);
 }
 
 async function clearCategory(category: ObservationCategory): Promise<void> {
-  await AsyncStorage.removeItem(KEYS[category]);
+  await StorageHelper.setObject(KEYS[category], []);
 }
 
 async function getUnsyncedCounts(): Promise<Record<ObservationCategory, number>> {
@@ -94,36 +99,74 @@ async function getUnsyncedCounts(): Promise<Record<ObservationCategory, number>>
 // ─────────────────────────────────────────────
 
 export const LocalStorageService = {
-  saveVirusObservation: (data: VirusObservation) =>
+  saveVirusObservation: async (data: VirusObservation) =>
     savePendingItem("virus", data),
 
-  saveAuxiliaireObservation: (data: AuxiliaireObservation) =>
+  saveAuxiliaireObservation: async (data: AuxiliaireObservation) =>
     savePendingItem("auxiliaire", data),
 
-  saveRavageursObservation: (data: RavageursObservation) =>
+  saveRavageursObservation: async (data: RavageursObservation) =>
     savePendingItem("ravageurs", data),
 
-  saveIrrigationObservation: (data: IrrigationObservation) =>
+  saveIrrigationObservation: async (data: IrrigationObservation) =>
     savePendingItem("irrigation", data),
 
-  saveInspectionObservation: (data: InspectionObservation) =>
+  saveInspectionObservation: async (data: InspectionObservation) =>
     savePendingItem("inspection", data),
 
-  saveCompteurObservation: (data: CompteurObservation) =>
+  saveCompteurObservation: async (data: CompteurObservation) =>
     savePendingItem("compteur", data),
 
   // ─────────────────────────────────────────────
   // Getters — used by SyncService
   // ─────────────────────────────────────────────
 
-  getVirusPending: () => getPendingItems<VirusObservation>("virus"),
-  getAuxiliairePending: () => getPendingItems<AuxiliaireObservation>("auxiliaire"),
-  getRavageursPending: () => getPendingItems<RavageursObservation>("ravageurs"),
-  getIrrigationPending: () => getPendingItems<IrrigationObservation>("irrigation"),
-  getInspectionPending: () => getPendingItems<InspectionObservation>("inspection"),
-  getCompteurPending: () => getPendingItems<CompteurObservation>("compteur"),
+  getVirusPending: async () => getPendingItems<VirusObservation>("virus"),
+  getAuxiliairePending: async () => getPendingItems<AuxiliaireObservation>("auxiliaire"),
+  getRavageursPending: async () => getPendingItems<RavageursObservation>("ravageurs"),
+  getIrrigationPending: async () => getPendingItems<IrrigationObservation>("irrigation"),
+  getInspectionPending: async () => getPendingItems<InspectionObservation>("inspection"),
+  getCompteurPending: async () => getPendingItems<CompteurObservation>("compteur"),
 
-  removeItemById,
-  clearCategory,
-  getUnsyncedCounts,
+  removeItemById: async (cat: any, id: any) => removeItemById(cat, id),
+  clearCategory: async (cat: any) => clearCategory(cat),
+  getUnsyncedCounts: async () => getUnsyncedCounts(),
+
+  // ─────────────────────────────────────────────
+  // Synced History Methods
+  // ─────────────────────────────────────────────
+
+  addToHistory: async (category: ObservationCategory, data: any): Promise<void> => {
+    try {
+      const history = (await StorageHelper.getObject<HistoryItem[]>(HISTORY_KEY)) || [];
+
+      const newItem: HistoryItem = {
+        id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        category,
+        data,
+        syncedAt: new Date().toISOString(),
+      };
+
+      history.unshift(newItem); // Add to beginning
+      const trimmed = history.slice(0, MAX_HISTORY_ITEMS);
+      await StorageHelper.setObject(HISTORY_KEY, trimmed);
+    } catch (e) {
+      console.error("Error adding to history", e);
+    }
+  },
+
+  getSyncedHistory: async (): Promise<HistoryItem[]> => {
+    try {
+      return (await StorageHelper.getObject<HistoryItem[]>(HISTORY_KEY)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  getAllPending: async (): Promise<PendingItem<any>[]> => {
+    const categories: ObservationCategory[] = ["virus", "auxiliaire", "ravageurs", "irrigation", "inspection", "compteur"];
+    const all = await Promise.all(categories.map(cat => getPendingItems<any>(cat)));
+    return all.flat().sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+  },
 };
+

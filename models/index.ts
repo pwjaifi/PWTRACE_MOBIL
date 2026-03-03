@@ -61,6 +61,7 @@ export interface AuxiliaireObservation {
   serreId: string;
   typeObservationId: string;
   population: PopulationLevel;
+  selectedLines: string[];
   description: string;
   imageUri?: string;
 }
@@ -101,6 +102,7 @@ export interface InspectionObservationBlock {
 
 export interface InspectionObservation {
   observationDate: Date;
+  weekNumber: number;
   serreId: string;
   farmId: string;
   secteurId: string;
@@ -135,4 +137,16 @@ export const LINES: Line[] = [
   { id: "L6", name: "Ligne 6" },
   { id: "L7", name: "Ligne 7" },
   { id: "L8", name: "Ligne 8" },
+  { id: "L9", name: "Ligne 9" },
+  { id: "L10", name: "Ligne 10" },
+  { id: "L11", name: "Ligne 11" },
+  { id: "L12", name: "Ligne 12" },
+  { id: "L13", name: "Ligne 13" },
+  { id: "L14", name: "Ligne 14" },
+  { id: "L15", name: "Ligne 15" },
+  { id: "L16", name: "Ligne 16" },
+  { id: "L17", name: "Ligne 17" },
+  { id: "L18", name: "Ligne 18" },
+  { id: "L19", name: "Ligne 19" },
+  { id: "L20", name: "Ligne 20" },
 ];

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   Alert,
   Platform,
   Pressable,
+  ActivityIndicator,
+  Modal,
 } from "react-native";
-import { router } from "expo-router";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { FormSection } from "@/components/forms/FormSection";
 import { FormDropdown } from "@/components/forms/FormDropdown";
@@ -18,7 +21,8 @@ import { FormTextInput } from "@/components/forms/FormTextInput";
 import { FormDateTimePicker } from "@/components/forms/FormDateTimePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
 import { LocalStorageService } from "@/services/LocalStorageService";
-import { MOCK_FARMS, getCompteursByFarmAndType } from "@/services/mockData";
+import { ApiService } from "@/services/ApiService";
+import { useData } from "@/contexts/DataContext";
 import type { CompteurType } from "@/models";
 
 export default function CompteurScreen() {
@@ -31,16 +35,35 @@ export default function CompteurScreen() {
   const [dateTime, setDateTime] = useState(new Date());
   const [vCompteur, setVCompteur] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const { isPreloaded, farmsIn, farmsOut, compteurs } = useData();
+
+  const farmOptions = useMemo(() => {
+    const data = compteurType === "IN" ? farmsIn : farmsOut;
+    return data.map((f: any) => ({ id: f.id.toString(), label: f.name }));
+  }, [compteurType, farmsIn, farmsOut]);
+
+  const compteurOptions = useMemo(() => {
+    if (!farmId || !compteurType) return [];
+    const list = compteurs[`${farmId}_${compteurType}`] || [];
+    return list.map((c: any) => ({ id: c.id.toString(), label: c.name }));
+  }, [farmId, compteurType, compteurs]);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const farmOptions = MOCK_FARMS.map((f) => ({ id: f.id, label: f.name }));
+  if (!isPreloaded) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ marginTop: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary }}>
+          Initialisation...
+        </Text>
+      </View>
+    );
+  }
 
-  const compteurOptions =
-    farmId && compteurType
-      ? getCompteursByFarmAndType(farmId, compteurType as CompteurType).map(
-          (c) => ({ id: c.id, label: c.name })
-        )
-      : [];
+  // Fetch Compteurs logic removed - now using useMemo with cached data from useData()
 
   function handleFarmChange(id: string) {
     setFarmId(id);
@@ -64,6 +87,15 @@ export default function CompteurScreen() {
     return Object.keys(newErrors).length === 0;
   }
 
+  function resetForm() {
+    setCompteurType("");
+    setFarmId("");
+    setCompteurId("");
+    setDateTime(new Date());
+    setVCompteur("");
+    setErrors({});
+  }
+
   async function handleSubmit() {
     if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -80,13 +112,15 @@ export default function CompteurScreen() {
         vCompteur: Number(vCompteur),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Enregistré localement",
-        "Le relevé a été sauvegardé. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
-        [{ text: "OK", onPress: () => router.back() }]
-      );
+
+      // Reset form immediately so user can add another entry
+      resetForm();
+
+      // Show in-app success modal
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2500);
     } catch {
-      Alert.alert("Erreur", "Impossible de sauvegarder le relevé. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder le relevé. Réessayez.", [{ text: "OK" }]);
     } finally {
       setLoading(false);
     }
@@ -99,6 +133,30 @@ export default function CompteurScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      {/* ── Success Confirmation Modal ──────────────────────────────────── */}
+      <Modal
+        visible={showSuccess}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowSuccess(false)}
+      >
+        <Pressable
+          style={successStyles.overlay}
+          onPress={() => setShowSuccess(false)}
+        >
+          <View style={successStyles.box}>
+            <View style={successStyles.iconCircle}>
+              <Ionicons name="checkmark-sharp" size={36} color={Colors.white} />
+            </View>
+            <Text style={successStyles.title}>Enregistré avec succès !</Text>
+            <Text style={successStyles.subtitle}>
+              Le relevé compteur a été sauvegardé localement.{"\n"}
+              Synchronisez pour l'envoyer au serveur.
+            </Text>
+          </View>
+        </Pressable>
+      </Modal>
       <View style={styles.categoryBadge}>
         <View style={[styles.badgeDot, { backgroundColor: Colors.categoryColors.compteur.icon }]} />
         <Text style={[styles.categoryLabel, { color: Colors.categoryColors.compteur.icon }]}>
@@ -182,7 +240,7 @@ export default function CompteurScreen() {
             onChange={setCompteurId}
             error={errors.compteur}
           />
-        ) : farmId && compteurOptions.length === 0 ? (
+        ) : farmId ? (
           <View style={styles.noCompteurBanner}>
             <Text style={styles.noCompteurText}>
               Aucun compteur {compteurType === "IN" ? "d'entrée" : "de sortie"} disponible pour cette ferme.
@@ -297,5 +355,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Poppins_400Regular",
     color: Colors.warning,
+  },
+});
+
+const successStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  box: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    gap: 14,
+    width: "100%",
+    maxWidth: 320,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 19,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

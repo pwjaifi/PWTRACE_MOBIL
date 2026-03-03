@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   Alert,
   Pressable,
   Platform,
+  ActivityIndicator,
+  Modal,
 } from "react-native";
-import { router } from "expo-router";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,57 +24,176 @@ import { FormMultiImagePicker } from "@/components/forms/FormImagePicker";
 import { FormDateTimePicker } from "@/components/forms/FormDateTimePicker";
 import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
 import { LocalStorageService } from "@/services/LocalStorageService";
+import { ApiService } from "@/services/ApiService";
+import { useData } from "@/contexts/DataContext";
 import {
-  ALL_SERRES,
-  getSerreInfo,
-  getObservationTypesByCategory,
-  MOCK_CULTURES,
 } from "@/services/mockData";
 import type { InspectionObservationBlock, ObservationStatus } from "@/models";
 
 const STATUS_OPTIONS = [
   {
     id: "todo",
-    label: "À faire",
+    label: "To Do",
     description: "Action requise",
-    color: Colors.warning,
+    color: Colors.warning, // Orange
   },
   {
     id: "normal",
     label: "Normal",
     description: "Situation normale",
-    color: Colors.primary,
+    color: Colors.success, // Green
   },
   {
     id: "danger",
     label: "Danger",
     description: "Intervention urgente",
-    color: Colors.error,
+    color: Colors.error, // Red
   },
 ];
 
-const INSPECTION_CATEGORIES = [
-  { id: "irrigation", label: "Irrigation" },
-  { id: "virus", label: "Virus" },
-  { id: "auxiliaire", label: "Auxiliaire" },
-  { id: "ravageurs", label: "Ravageurs" },
-];
+
+/**
+ * ISO-8601 week number calculation
+ */
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+// Custom Confirmation Modal for reliable deletion
+function ConfirmModal({
+  visible,
+  onConfirm,
+  onCancel,
+  title,
+  message,
+}: {
+  visible: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  title: string;
+  message: string;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={confirmModalStyles.overlay}>
+        <View style={confirmModalStyles.modal}>
+          <Text style={confirmModalStyles.title}>{title}</Text>
+          <Text style={confirmModalStyles.message}>{message}</Text>
+          <View style={confirmModalStyles.actions}>
+            <Pressable
+              style={[confirmModalStyles.btn, confirmModalStyles.btnCancel]}
+              onPress={onCancel}
+            >
+              <Text style={confirmModalStyles.btnCancelText}>Annuler</Text>
+            </Pressable>
+            <Pressable
+              style={[confirmModalStyles.btn, confirmModalStyles.btnDelete]}
+              onPress={onConfirm}
+            >
+              <Text style={confirmModalStyles.btnDeleteText}>Supprimer</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const confirmModalStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  modal: {
+    width: "85%",
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  message: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  btn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnCancel: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  btnCancelText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.textSecondary,
+  },
+  btnDelete: {
+    backgroundColor: Colors.error,
+  },
+  btnDeleteText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.white,
+  },
+});
 
 function ObservationBlockItem({
   block,
   index,
   onUpdate,
   onRemove,
+  categories,
+  observationTypesMap,
 }: {
   block: InspectionObservationBlock;
   index: number;
   onUpdate: (block: InspectionObservationBlock) => void;
   onRemove: () => void;
+  categories: { id: string; label: string }[];
+  observationTypesMap: Record<string, any[]>;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const typeOptions = getObservationTypesByCategory(block.categoryId).map(
-    (t) => ({ id: t.id, label: t.name })
-  );
+  const typeOptions = useMemo(() => {
+    const types = observationTypesMap[block.categoryId] || [];
+    return types.map((t: any) => ({
+      id: t.id.toString(),
+      label: t.name || t.nom || `Type #${t.id}`
+    }));
+  }, [block.categoryId, observationTypesMap]);
 
   return (
     <View style={blockStyles.container}>
@@ -86,8 +207,8 @@ function ObservationBlockItem({
           </View>
           <Text style={blockStyles.blockTitle}>
             {block.categoryId
-              ? INSPECTION_CATEGORIES.find((c) => c.id === block.categoryId)
-                  ?.label ?? "Observation"
+              ? categories.find((c) => c.id.toString() === block.categoryId.toString())
+                ?.label ?? "Observation"
               : `Bloc ${index + 1}`}
           </Text>
           {block.status ? (
@@ -99,8 +220,8 @@ function ObservationBlockItem({
                     block.status === "danger"
                       ? Colors.errorLight
                       : block.status === "todo"
-                      ? Colors.warningLight
-                      : Colors.successLight,
+                        ? Colors.warningLight
+                        : Colors.successLight,
                 },
               ]}
             >
@@ -112,16 +233,22 @@ function ObservationBlockItem({
                       block.status === "danger"
                         ? Colors.error
                         : block.status === "todo"
-                        ? Colors.warning
-                        : Colors.primary,
+                          ? Colors.warning
+                          : Colors.success,
+                    borderColor:
+                      block.status === "danger"
+                        ? Colors.error
+                        : block.status === "todo"
+                          ? Colors.warning
+                          : Colors.success,
                   },
                 ]}
               >
                 {block.status === "todo"
-                  ? "À faire"
+                  ? "To Do"
                   : block.status === "normal"
-                  ? "Normal"
-                  : "Danger"}
+                    ? "Normal"
+                    : "Danger"}
               </Text>
             </View>
           ) : null}
@@ -147,7 +274,7 @@ function ObservationBlockItem({
             label="Catégorie"
             required
             placeholder="Sélectionner une catégorie"
-            options={INSPECTION_CATEGORIES}
+            options={categories}
             value={block.categoryId}
             onChange={(v) =>
               onUpdate({ ...block, categoryId: v, typeObservationId: "" })
@@ -251,13 +378,15 @@ const blockStyles = StyleSheet.create({
     flex: 1,
   },
   statusPill: {
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
   },
   statusPillText: {
-    fontSize: 11,
-    fontFamily: "Poppins_600SemiBold",
+    fontSize: 10,
+    fontFamily: "Poppins_700Bold",
+    textTransform: "uppercase",
   },
   content: {
     padding: 14,
@@ -269,6 +398,8 @@ export default function InspectionScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const { serres, cultures, categories, isPreloaded, getSerreInfo: getCachedSerreInfo, observationTypesMap } = useData();
+
   const [observationDate, setObservationDate] = useState(new Date());
   const [serreId, setSerreId] = useState("");
   const [cultureId, setCultureId] = useState("");
@@ -276,10 +407,31 @@ export default function InspectionScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const serreInfo = serreId ? getSerreInfo(serreId) : null;
+  // State for delete modal
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [blockToDelete, setBlockToDelete] = useState<string | null>(null);
 
-  const serreOptions = ALL_SERRES.map((s) => ({ id: s.id, label: s.name }));
-  const cultureOptions = MOCK_CULTURES.map((c) => ({ id: c.id, label: c.name }));
+  // State for success confirmation
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const weekNumber = useMemo(() => getWeekNumber(observationDate), [observationDate]);
+
+  const serreOptions = useMemo(() =>
+    serres.map((s: any) => ({ id: s.id.toString(), label: s.nomSerre || s.nom || s.name })),
+    [serres]
+  );
+
+  const cultureOptions = useMemo(() =>
+    cultures.map((c: any) => ({ id: c.id.toString(), label: c.name })),
+    [cultures]
+  );
+
+  const categoriesOptions = useMemo(() =>
+    categories.map((c: any) => ({ id: c.id.toString(), label: c.name })),
+    [categories]
+  );
+
+  const serreDetails = useMemo(() => getCachedSerreInfo(serreId), [serreId, getCachedSerreInfo]);
 
   function addBlock() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -298,29 +450,50 @@ export default function InspectionScreen() {
     setBlocks((prev) => prev.map((b) => (b.id === id ? updated : b)));
   }
 
-  function removeBlock(id: string) {
-    Alert.alert(
-      "Supprimer le bloc",
-      "Êtes-vous sûr de vouloir supprimer ce bloc d'observation ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: () => setBlocks((prev) => prev.filter((b) => b.id !== id)),
-        },
-      ]
-    );
+  function handleRemovePress(id: string) {
+    setBlockToDelete(id);
+    setDeleteModalVisible(true);
+  }
+
+  function confirmDelete() {
+    if (blockToDelete) {
+      setBlocks((prev) => prev.filter((b) => b.id !== blockToDelete));
+      setDeleteModalVisible(false);
+      setBlockToDelete(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   }
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
-    if (!serreId) newErrors.serre = "Veuillez sélectionner une serre";
+    if (!serreId) {
+      newErrors.serre = "Veuillez sélectionner une serre";
+    } else if (!serreDetails) {
+      newErrors.serre = "Détails de la serre introuvables";
+    }
+
     if (!cultureId) newErrors.culture = "Veuillez sélectionner une culture";
-    if (blocks.length === 0)
+
+    if (blocks.length === 0) {
       newErrors.blocks = "Ajoutez au moins un bloc d'observation";
+    } else {
+      // Check if each block has required fields
+      const incompleteBlock = blocks.some((b) => !b.categoryId || !b.typeObservationId);
+      if (incompleteBlock) {
+        newErrors.blocks = "Tous les blocs doivent avoir une catégorie et un type";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  }
+
+  function resetForm() {
+    setSerreId("");
+    setCultureId("");
+    setBlocks([]);
+    setErrors({});
+    setObservationDate(new Date());
   }
 
   async function handleSubmit() {
@@ -333,23 +506,37 @@ export default function InspectionScreen() {
       // Saves locally for offline-first sync — use SyncService to send to backend
       await LocalStorageService.saveInspectionObservation({
         observationDate,
+        weekNumber,
         serreId,
-        farmId: serreInfo?.farm?.id ?? "",
-        secteurId: serreInfo?.secteur?.id ?? "",
+        farmId: serreDetails?.ferme?.id?.toString() ?? "",
+        secteurId: serreDetails?.secteur?.id?.toString() ?? "",
         cultureId,
         observationBlocks: blocks,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Enregistré localement",
-        "L'inspection a été sauvegardée. Synchronisez depuis l'onglet Sync pour l'envoyer au serveur.",
-        [{ text: "OK", onPress: () => router.back() }]
-      );
+
+      // Reset form immediately so user can add another entry
+      resetForm();
+
+      // Show in-app success modal
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2500);
     } catch {
-      Alert.alert("Erreur", "Impossible de sauvegarder l'inspection. Réessayez.");
+      Alert.alert("Erreur", "Impossible de sauvegarder l'inspection. Réessayez.", [{ text: "OK" }]);
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!isPreloaded) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ marginTop: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary }}>
+          Initialisation des données...
+        </Text>
+      </View>
+    );
   }
 
   return (
@@ -359,6 +546,31 @@ export default function InspectionScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      {/* ── Success Confirmation Modal ──────────────────────────────────── */}
+      <Modal
+        visible={showSuccess}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowSuccess(false)}
+      >
+        <Pressable
+          style={successStyles.overlay}
+          onPress={() => setShowSuccess(false)}
+        >
+          <View style={successStyles.box}>
+            <View style={successStyles.iconCircle}>
+              <Ionicons name="checkmark-sharp" size={36} color={Colors.white} />
+            </View>
+            <Text style={successStyles.title}>Enregistré avec succès !</Text>
+            <Text style={successStyles.subtitle}>
+              L'inspection a été sauvegardée localement.{"\n"}
+              Synchronisez pour l'envoyer au serveur.
+            </Text>
+          </View>
+        </Pressable>
+      </Modal>
+
       <View style={styles.categoryBadge}>
         <View style={[styles.badgeDot, { backgroundColor: Colors.categoryColors.inspection.icon }]} />
         <Text style={[styles.categoryLabel, { color: Colors.categoryColors.inspection.icon }]}>
@@ -367,13 +579,21 @@ export default function InspectionScreen() {
       </View>
 
       <FormSection title="Informations générales">
-        <FormDateTimePicker
-          label="Date d'observation"
-          required
-          value={observationDate}
-          onChange={setObservationDate}
-          mode="date"
-        />
+        <View style={styles.dateAndWeekRow}>
+          <View style={{ flex: 1 }}>
+            <FormDateTimePicker
+              label="Date d'observation"
+              required
+              value={observationDate}
+              onChange={setObservationDate}
+              mode="date"
+            />
+          </View>
+          <View style={styles.weekDisplayBox}>
+            <Text style={styles.weekLabel}>Semaine</Text>
+            <Text style={styles.weekValue}>{weekNumber}</Text>
+          </View>
+        </View>
 
         <FormDropdown
           label="Serre"
@@ -385,16 +605,16 @@ export default function InspectionScreen() {
           error={errors.serre}
         />
 
-        {serreId && serreInfo?.farm ? (
+        {serreDetails ? (
           <View style={styles.autoInfoRow}>
             <View style={styles.autoInfoItem}>
               <Text style={styles.autoInfoLabel}>Ferme</Text>
-              <Text style={styles.autoInfoValue}>{serreInfo.farm.name}</Text>
+              <Text style={styles.autoInfoValue}>{serreDetails.ferme.nom}</Text>
             </View>
             <View style={styles.autoInfoDivider} />
             <View style={styles.autoInfoItem}>
               <Text style={styles.autoInfoLabel}>Secteur</Text>
-              <Text style={styles.autoInfoValue}>{serreInfo.secteur?.name}</Text>
+              <Text style={styles.autoInfoValue}>{serreDetails.secteur.nom}</Text>
             </View>
           </View>
         ) : null}
@@ -426,7 +646,9 @@ export default function InspectionScreen() {
             block={block}
             index={index}
             onUpdate={(updated) => updateBlock(block.id, updated)}
-            onRemove={() => removeBlock(block.id)}
+            onRemove={() => handleRemovePress(block.id)}
+            categories={categoriesOptions}
+            observationTypesMap={observationTypesMap}
           />
         ))}
 
@@ -444,6 +666,14 @@ export default function InspectionScreen() {
         loading={loading}
         icon="save-outline"
         disabled={blocks.length === 0}
+      />
+
+      <ConfirmModal
+        visible={deleteModalVisible}
+        title="Supprimer le bloc"
+        message="Êtes-vous sûr de vouloir supprimer ce bloc d'observation ?"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModalVisible(false)}
       />
     </ScrollView>
   );
@@ -541,5 +771,80 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.primary,
+  },
+  dateAndWeekRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-end",
+  },
+  weekDisplayBox: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+    height: 56, // Align with typical input height
+    marginBottom: 0,
+  },
+  weekLabel: {
+    fontSize: 10,
+    fontFamily: "Poppins_500Medium",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+  },
+  weekValue: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.primary,
+  },
+});
+
+const successStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  box: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    gap: 14,
+    width: "100%",
+    maxWidth: 320,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 19,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

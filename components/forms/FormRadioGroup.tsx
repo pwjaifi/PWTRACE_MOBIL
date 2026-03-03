@@ -63,17 +63,25 @@ export function FormRadioGroup({
                   <View style={[styles.radioInner, { backgroundColor: color }]} />
                 ) : null}
               </View>
-              <View style={styles.optionContent}>
+              <View style={[styles.optionContent, horizontal && styles.optionContentHorizontal]}>
                 <Text
                   style={[
                     styles.optionLabel,
+                    horizontal && styles.optionLabelHorizontal,
                     isSelected && { color, fontFamily: "Poppins_600SemiBold" },
                   ]}
+                  numberOfLines={1}
                 >
                   {option.label}
                 </Text>
                 {option.description ? (
-                  <Text style={styles.optionDescription}>
+                  <Text
+                    style={[
+                      styles.optionDescription,
+                      horizontal && styles.optionDescriptionHorizontal,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {option.description}
                   </Text>
                 ) : null}
@@ -101,8 +109,7 @@ const styles = StyleSheet.create({
   },
   optionsHorizontal: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
   option: {
     flexDirection: "row",
@@ -117,8 +124,11 @@ const styles = StyleSheet.create({
   },
   optionHorizontal: {
     flex: 1,
-    minWidth: 80,
-    justifyContent: "center",
+    flexDirection: "column",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    gap: 6,
   },
   optionSelected: {
     borderWidth: 2,
@@ -138,16 +148,28 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   optionContent: { flex: 1 },
+  optionContentHorizontal: {
+    alignItems: "center",
+    width: "100%",
+  },
   optionLabel: {
     fontSize: 14,
     fontFamily: "Poppins_500Medium",
     color: Colors.text,
+  },
+  optionLabelHorizontal: {
+    fontSize: 13,
+    textAlign: "center",
   },
   optionDescription: {
     fontSize: 12,
     fontFamily: "Poppins_400Regular",
     color: Colors.textTertiary,
     marginTop: 1,
+  },
+  optionDescriptionHorizontal: {
+    fontSize: 10,
+    textAlign: "center",
   },
   error: {
     fontSize: 12,

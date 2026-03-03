@@ -31,7 +31,7 @@ export function CategoryCard({ config, onPress }: CategoryCardProps) {
   }));
 
   function handlePressIn() {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
+    scale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
   }
 
   function handlePressOut() {
@@ -54,16 +54,13 @@ export function CategoryCard({ config, onPress }: CategoryCardProps) {
         <View
           style={[styles.iconContainer, { backgroundColor: config.colors.bg }]}
         >
-          <Ionicons name={config.icon} size={26} color={config.colors.icon} />
+          <Ionicons name={config.icon} size={28} color={config.colors.icon} />
         </View>
         <View style={styles.textContainer}>
           <Text style={styles.title}>{config.title}</Text>
           <Text style={styles.subtitle} numberOfLines={2}>
             {config.subtitle}
           </Text>
-        </View>
-        <View style={[styles.chevronContainer, { backgroundColor: config.colors.bg }]}>
-          <Ionicons name="chevron-forward" size={16} color={config.colors.icon} />
         </View>
       </Pressable>
     </Animated.View>
@@ -72,51 +69,47 @@ export function CategoryCard({ config, onPress }: CategoryCardProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
+    flex: 1,
+    margin: 6,
     shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
-    borderRadius: 16,
-    marginBottom: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 4,
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    borderRadius: 20,
+    padding: 20,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    height: 160,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   textContainer: {
-    flex: 1,
-    gap: 2,
+    alignItems: "center",
+    gap: 4,
   },
   title: {
     fontSize: 15,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.text,
+    textAlign: "center",
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Poppins_400Regular",
     color: Colors.textTertiary,
-    lineHeight: 17,
-  },
-  chevronContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
+    lineHeight: 15,
+    textAlign: "center",
   },
 });

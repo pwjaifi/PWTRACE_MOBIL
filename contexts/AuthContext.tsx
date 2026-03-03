@@ -6,13 +6,24 @@ import React, {
   useMemo,
   ReactNode,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ApiService } from "@/services/ApiService";
+import { storage, StorageHelper } from "@/lib/storage";
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
   role: string;
+  categories: string[];
+  affectations: {
+    farmId: string;
+    secteurId: string;
+    serreId: string;
+  }[];
+  affectationsCompteurs?: {
+    farmId: string;
+    compteurId: string;
+  }[];
 }
 
 interface AuthContextValue {
@@ -35,12 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Session restore using StorageHelper
   useEffect(() => {
     async function restoreSession() {
       try {
-        const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+        const stored = await StorageHelper.getObject<AuthUser>(AUTH_STORAGE_KEY);
         if (stored) {
-          setUser(JSON.parse(stored));
+          setUser(stored);
         }
       } catch {
         // Session restore failed silently
@@ -52,42 +64,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login(email: string, password: string): Promise<LoginResult> {
-    // ─────────────────────────────────────────────
-    // API integration point — replace with real API call:
-    // const response = await ApiService.login(email, password);
-    // Handle response: success, invalid credentials, account disabled, network error
-    // ─────────────────────────────────────────────
+    try {
+      const result = await ApiService.login(email, password);
 
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (result.token && result.user) {
+        console.log("[AuthContext] Login successful. User data:", JSON.stringify(result.user, null, 2));
 
-    // Placeholder: simulate account disabled
-    if (email.toLowerCase() === "disabled@example.com") {
-      return { success: false, reason: "account_disabled" };
-    }
+        const loggedInUser: AuthUser = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+          categories: result.user.categories || [],
+          affectations: result.user.affectations || [],
+          affectationsCompteurs: result.user.affectationsCompteurs || [],
+        };
 
-    // Placeholder: simulate invalid credentials
-    if (!email.includes("@") || password.length < 3) {
+        // Persistent storage
+        await StorageHelper.setObject(AUTH_STORAGE_KEY, loggedInUser);
+        await StorageHelper.setString("auth_token", result.token);
+
+        setUser(loggedInUser);
+        return { success: true, user: loggedInUser };
+      }
+
       return { success: false, reason: "invalid_credentials" };
+    } catch (error: any) {
+      console.error("Login error:", error);
+
+      if (error.message?.toLowerCase().includes("credentials") || error.message?.toLowerCase().includes("unauthorized")) {
+        return { success: false, reason: "invalid_credentials" };
+      }
+      if (error.message?.toLowerCase().includes("disabled")) {
+        return { success: false, reason: "account_disabled" };
+      }
+
+      return { success: false, reason: "network_error" };
     }
-
-    // Placeholder: simulate successful login
-    const loggedInUser: AuthUser = {
-      id: "user-001",
-      name: email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      email,
-      role: "Technicien",
-    };
-
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(loggedInUser));
-    setUser(loggedInUser);
-    return { success: true, user: loggedInUser };
   }
 
   async function logout(): Promise<void> {
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    setUser(null);
+    try {
+      await ApiService.logout();
+    } catch (error) {
+      console.error("Logout API error:", error);
+    } finally {
+      await StorageHelper.delete(AUTH_STORAGE_KEY);
+      await StorageHelper.delete("auth_token");
+      setUser(null);
+    }
   }
+
+
 
   const value = useMemo<AuthContextValue>(
     () => ({

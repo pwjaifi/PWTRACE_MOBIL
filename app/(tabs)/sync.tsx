@@ -8,12 +8,14 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  RefreshControl,
+  Modal,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { Colors } from "@/constants/colors";
 import { LocalStorageService } from "@/services/LocalStorageService";
 import { SyncService, type SyncResult } from "@/services/SyncService";
@@ -72,26 +74,169 @@ const SYNC_CATEGORIES: CategorySyncConfig[] = [
   },
 ];
 
+// ── Custom Confirm Modal ─────────────────────────────────────────────────────
+function ConfirmModal({
+  visible,
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  destructive,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onCancel}
+    >
+      <Pressable style={modalStyles.overlay} onPress={onCancel}>
+        <Pressable style={modalStyles.box} onPress={() => { }}>
+          <View style={modalStyles.iconWrap}>
+            <Ionicons
+              name={destructive ? "trash-outline" : "alert-circle-outline"}
+              size={30}
+              color={destructive ? Colors.error : Colors.warning}
+            />
+          </View>
+          <Text style={modalStyles.title}>{title}</Text>
+          <Text style={modalStyles.message}>{message}</Text>
+          <View style={modalStyles.actions}>
+            <Pressable
+              style={({ pressed }) => [
+                modalStyles.btn,
+                modalStyles.btnCancel,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onCancel}
+            >
+              <Text style={modalStyles.btnCancelText}>Annuler</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                modalStyles.btn,
+                destructive ? modalStyles.btnDestructive : modalStyles.btnPrimary,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onConfirm}
+            >
+              <Text style={modalStyles.btnConfirmText}>{confirmLabel}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  box: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: Colors.errorLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 17,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    textAlign: "center",
+  },
+  message: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+    width: "100%",
+  },
+  btn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnCancel: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  btnDestructive: {
+    backgroundColor: Colors.error,
+  },
+  btnPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  btnCancelText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.textSecondary,
+  },
+  btnConfirmText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.white,
+  },
+});
+// ────────────────────────────────────────────────────────────────────────────
+
 function SyncCategoryCard({
   config,
   count,
   onSync,
+  onDelete,
   syncing,
   lastResult,
 }: {
   config: CategorySyncConfig;
   count: number;
   onSync: () => void;
+  onDelete: () => void;
   syncing: boolean;
   lastResult?: SyncResult;
 }) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
   return (
-    <Animated.View entering={FadeIn.duration(400)} style={[styles.card, animStyle]}>
+    <Animated.View entering={FadeIn.duration(400)} style={styles.card}>
       <View style={styles.cardLeft}>
         <View style={[styles.cardIcon, { backgroundColor: config.colors.bg }]}>
           <Ionicons name={config.icon} size={22} color={config.colors.icon} />
@@ -129,27 +274,44 @@ function SyncCategoryCard({
         </View>
       </View>
 
-      <Pressable
-        style={[
-          styles.syncBtn,
-          { backgroundColor: config.colors.icon },
-          syncing && styles.syncBtnDisabled,
-        ]}
-        onPress={onSync}
-        onPressIn={() => {
-          scale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-        }}
-        disabled={syncing}
-      >
-        {syncing ? (
-          <ActivityIndicator size="small" color={Colors.white} />
-        ) : (
-          <Ionicons name="cloud-upload-outline" size={18} color={Colors.white} />
+      <View style={styles.actionButtons}>
+        {count > 0 && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.deleteBtn,
+              syncing && styles.syncBtnDisabled,
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={onDelete}
+            disabled={syncing}
+            hitSlop={15}
+          >
+            {syncing ? (
+              <ActivityIndicator size="small" color={Colors.error} />
+            ) : (
+              <Ionicons name="trash-outline" size={18} color={Colors.error} />
+            )}
+          </Pressable>
         )}
-      </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.syncBtn,
+            { backgroundColor: config.colors.icon },
+            syncing && styles.syncBtnDisabled,
+            pressed && { opacity: 0.7 },
+          ]}
+          onPress={onSync}
+          disabled={syncing}
+          hitSlop={15}
+        >
+          {syncing ? (
+            <ActivityIndicator size="small" color={Colors.white} />
+          ) : (
+            <Ionicons name="cloud-upload-outline" size={18} color={Colors.white} />
+          )}
+        </Pressable>
+      </View>
     </Animated.View>
   );
 }
@@ -170,6 +332,29 @@ export default function SyncScreen() {
   const [syncingCategory, setSyncingCategory] = useState<ObservationCategory | null>(null);
   const [lastResults, setLastResults] = useState<Partial<Record<ObservationCategory, SyncResult>>>({});
   const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isDeletingCategory, setIsDeletingCategory] = useState<ObservationCategory | null>(null);
+
+  // ── Confirm modal state ─────────────────────────────────────────────────
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirmer",
+    onConfirm: () => { },
+    destructive: true,
+  });
+
+  function closeModal() {
+    setConfirmModal((prev) => ({ ...prev, visible: false }));
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   const loadCounts = useCallback(async () => {
     const fresh = await LocalStorageService.getUnsyncedCounts();
@@ -187,6 +372,8 @@ export default function SyncScreen() {
     (c) => counts[c.key] > 0
   );
 
+  const isBusy = syncingCategory !== null || isSyncingAll || isDeletingCategory !== null;
+
   async function handleSyncCategory(config: CategorySyncConfig) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSyncingCategory(config.key);
@@ -197,13 +384,14 @@ export default function SyncScreen() {
       if (result.failed > 0) {
         Alert.alert(
           "Synchronisation partielle",
-          `${result.synced} élément(s) synchronisé(s), ${result.failed} ont échoué.`
+          `${result.synced} élément(s) synchronisé(s), ${result.failed} ont échoué.`,
+          [{ text: "OK" }]
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      Alert.alert("Erreur", "La synchronisation a échoué. Vérifiez votre connexion.");
+      Alert.alert("Erreur", "La synchronisation a échoué. Vérifiez votre connexion.", [{ text: "OK" }]);
     } finally {
       setSyncingCategory(null);
     }
@@ -222,23 +410,95 @@ export default function SyncScreen() {
       if (totalFailed > 0) {
         Alert.alert(
           "Synchronisation terminée",
-          `${totalSynced} synchronisé(s), ${totalFailed} ont échoué.`
+          `${totalSynced} synchronisé(s), ${totalFailed} ont échoué.`,
+          [{ text: "OK" }]
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Succès", `${totalSynced} observation(s) synchronisée(s) avec succès.`);
+        Alert.alert("Succès ✓", `${totalSynced} observation(s) synchronisée(s) avec succès.`, [{ text: "OK" }]);
       }
     } catch {
-      Alert.alert("Erreur", "La synchronisation globale a échoué.");
+      Alert.alert("Erreur", "La synchronisation globale a échoué.", [{ text: "OK" }]);
     } finally {
       setIsSyncingAll(false);
     }
   }
 
+  // ── Delete handlers use in-app modal, NOT Alert.alert ───────────────────
+  function handleDeleteCategory(config: CategorySyncConfig) {
+    setConfirmModal({
+      visible: true,
+      title: "Supprimer les observations",
+      message: `Voulez-vous supprimer toutes les observations en attente pour la catégorie "${config.title}" ?`,
+      confirmLabel: "Supprimer",
+      destructive: true,
+      onConfirm: () => {
+        closeModal();
+        setIsDeletingCategory(config.key);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        LocalStorageService.clearCategory(config.key)
+          .then(() => loadCounts())
+          .then(() => {
+            setLastResults((prev) => {
+              const res = { ...prev };
+              delete res[config.key];
+              return res;
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          })
+          .catch(() => {
+            Alert.alert("Erreur", "Impossible de supprimer les observations.", [{ text: "OK" }]);
+          })
+          .finally(() => {
+            setIsDeletingCategory(null);
+          });
+      },
+    });
+  }
+
+  function handleDeleteAll() {
+    setConfirmModal({
+      visible: true,
+      title: "Tout supprimer",
+      message: "Voulez-vous supprimer TOUTES les observations en attente ? Cette action est irréversible.",
+      confirmLabel: "Tout supprimer",
+      destructive: true,
+      onConfirm: () => {
+        closeModal();
+        setIsSyncingAll(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        Promise.all(SYNC_CATEGORIES.map((c) => LocalStorageService.clearCategory(c.key)))
+          .then(() => loadCounts())
+          .then(() => {
+            setLastResults({});
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          })
+          .catch(() => {
+            Alert.alert("Erreur", "Impossible de tout supprimer.", [{ text: "OK" }]);
+          })
+          .finally(() => {
+            setIsSyncingAll(false);
+          });
+      },
+    });
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
+      {/* ── Custom confirm modal ─────────────────────────────────────────── */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmLabel={confirmModal.confirmLabel}
+        destructive={confirmModal.destructive}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={closeModal}
+      />
+
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Synchronisation</Text>
           <Text style={styles.headerSubtitle}>
             {totalPending === 0
@@ -246,23 +506,39 @@ export default function SyncScreen() {
               : `${totalPending} observation(s) en attente`}
           </Text>
         </View>
-        <Pressable
-          style={[
-            styles.syncAllBtn,
-            (totalPending === 0 || isSyncingAll) && styles.syncAllBtnDisabled,
-          ]}
-          onPress={handleSyncAll}
-          disabled={totalPending === 0 || isSyncingAll}
-        >
-          {isSyncingAll ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Ionicons name="cloud-upload" size={18} color={Colors.white} />
+        <View style={styles.headerActions}>
+          {totalPending > 0 && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.clearAllBtn,
+                isBusy && styles.syncBtnDisabled,
+                pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] },
+              ]}
+              onPress={handleDeleteAll}
+              disabled={isBusy}
+              hitSlop={10}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            </Pressable>
           )}
-          <Text style={styles.syncAllBtnText}>
-            {isSyncingAll ? "Sync..." : "Tout syncer"}
-          </Text>
-        </Pressable>
+          <Pressable
+            style={[
+              styles.syncAllBtn,
+              (totalPending === 0 || isSyncingAll) && styles.syncAllBtnDisabled,
+            ]}
+            onPress={handleSyncAll}
+            disabled={totalPending === 0 || isSyncingAll}
+          >
+            {isSyncingAll ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <Ionicons name="cloud-upload" size={18} color={Colors.white} />
+            )}
+            <Text style={styles.syncAllBtnText}>
+              {isSyncingAll ? "Sync..." : "Tout syncer"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -271,7 +547,9 @@ export default function SyncScreen() {
           styles.scrollContent,
           { paddingBottom: bottomPad + 100 },
         ]}
-        onRefresh={loadCounts}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={loadCounts} tintColor={Colors.primary} />
+        }
       >
         {categoriesWithPending.length === 0 ? (
           <View style={styles.emptyState}>
@@ -296,9 +574,14 @@ export default function SyncScreen() {
                 key={config.key}
                 config={config}
                 count={counts[config.key]}
-                syncing={syncingCategory === config.key || isSyncingAll}
+                syncing={
+                  syncingCategory === config.key ||
+                  isSyncingAll ||
+                  isDeletingCategory === config.key
+                }
                 lastResult={lastResults[config.key]}
                 onSync={() => handleSyncCategory(config)}
+                onDelete={() => handleDeleteCategory(config)}
               />
             ))}
           </>
@@ -340,6 +623,21 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  clearAllBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.errorLight,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.error + "20",
   },
   syncAllBtn: {
     flexDirection: "row",
@@ -463,17 +761,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins_500Medium",
   },
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   syncBtn: {
     width: 42,
     height: 42,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 10,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+  },
+  deleteBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.errorLight,
+    borderWidth: 1,
+    borderColor: Colors.error + "20",
   },
   syncBtnDisabled: {
     opacity: 0.6,
@@ -524,3 +836,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

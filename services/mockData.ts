@@ -2,65 +2,43 @@ import type { Farm, ObservationType, Culture, Compteur } from "@/models";
 
 export const MOCK_FARMS: Farm[] = [
   {
-    id: "farm1",
+    id: "1",
     name: "Ferme Nord",
     secteurs: [
       {
-        id: "s1",
+        id: "1",
         name: "Secteur A",
-        farmId: "farm1",
+        farmId: "1",
         serres: [
-          { id: "sr1", name: "Serre 1", secteurId: "s1", farmId: "farm1" },
-          { id: "sr2", name: "Serre 2", secteurId: "s1", farmId: "farm1" },
-          { id: "sr3", name: "Serre 3", secteurId: "s1", farmId: "farm1" },
+          { id: "1", name: "Serre 1", secteurId: "1", farmId: "1" },
+          { id: "2", name: "Serre 2", secteurId: "1", farmId: "1" },
+          { id: "3", name: "Serre 3", secteurId: "1", farmId: "1" },
+          { id: "4", name: "Serre 4", secteurId: "1", farmId: "1" },
+          { id: "5", name: "Serre 5", secteurId: "1", farmId: "1" },
+          { id: "6", name: "Serre 6", secteurId: "1", farmId: "1" },
         ],
       },
       {
-        id: "s2",
+        id: "2",
         name: "Secteur B",
-        farmId: "farm1",
+        farmId: "1",
         serres: [
-          { id: "sr4", name: "Serre 4", secteurId: "s2", farmId: "farm1" },
-          { id: "sr5", name: "Serre 5", secteurId: "s2", farmId: "farm1" },
+          { id: "17", name: "Serre 17", secteurId: "2", farmId: "1" },
+          { id: "18", name: "Serre 18", secteurId: "2", farmId: "1" },
         ],
       },
     ],
   },
   {
-    id: "farm2",
+    id: "2",
     name: "Ferme Sud",
     secteurs: [
       {
-        id: "s3",
+        id: "3",
         name: "Secteur C",
-        farmId: "farm2",
+        farmId: "2",
         serres: [
-          { id: "sr6", name: "Serre 6", secteurId: "s3", farmId: "farm2" },
-          { id: "sr7", name: "Serre 7", secteurId: "s3", farmId: "farm2" },
-        ],
-      },
-      {
-        id: "s4",
-        name: "Secteur D",
-        farmId: "farm2",
-        serres: [
-          { id: "sr8", name: "Serre 8", secteurId: "s4", farmId: "farm2" },
-          { id: "sr9", name: "Serre 9", secteurId: "s4", farmId: "farm2" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "farm3",
-    name: "Ferme Est",
-    secteurs: [
-      {
-        id: "s5",
-        name: "Secteur E",
-        farmId: "farm3",
-        serres: [
-          { id: "sr10", name: "Serre 10", secteurId: "s5", farmId: "farm3" },
-          { id: "sr11", name: "Serre 11", secteurId: "s5", farmId: "farm3" },
+          { id: "38", name: "Serre 38", secteurId: "3", farmId: "2" },
         ],
       },
     ],
