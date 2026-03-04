@@ -5,6 +5,7 @@
             "distribution": "internal"
         },
         "preview": {
+            "channel": "preview",
             "android": {
                 "buildType": "apk"
             },
@@ -13,6 +14,8 @@
                 "EXPO_PUBLIC_DOMAIN": "pwtrace.pepperworld.ma"
             }
         },
-        "production": {}
+        "production": {
+            "channel": "production"
+        }
     }
 }

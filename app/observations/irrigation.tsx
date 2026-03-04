@@ -13,6 +13,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { QRScannerModal } from "@/components/qr/QRScannerModal";
 import { Colors } from "@/constants/colors";
 import { FormSection } from "@/components/forms/FormSection";
 import { FarmSecteurSerreSelect } from "@/components/forms/FarmSecteurSerreSelect";
@@ -48,7 +49,15 @@ export default function IrrigationScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const { isPreloaded } = useData();
+
+  const handleScanSuccess = ({ farmId, secteurId, serreId }: { farmId: string, secteurId: string, serreId: string }) => {
+    setFarmId(farmId);
+    setSecteurId(secteurId);
+    setSerreId(serreId);
+    setErrors(prev => ({ ...prev, farm: "", secteur: "", serre: "" }));
+  };
 
   if (!isPreloaded) {
     return (
@@ -174,6 +183,20 @@ export default function IrrigationScreen() {
           Observation Irrigation
         </Text>
       </View>
+
+      <Pressable
+        style={styles.scanButton}
+        onPress={() => setShowScanner(true)}
+      >
+        <Ionicons name="qr-code-outline" size={24} color={Colors.white} />
+        <Text style={styles.scanButtonText}>Scanner le QR Code de la Serre</Text>
+      </Pressable>
+
+      <QRScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
 
       <FormSection title="Localisation">
         <FarmSecteurSerreSelect
@@ -344,6 +367,21 @@ const styles = StyleSheet.create({
   },
   metricField: {
     flex: 1,
+  },
+  scanButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    gap: 10,
+    marginTop: 8,
+  },
+  scanButtonText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontFamily: "Poppins_600SemiBold",
   },
 });
 

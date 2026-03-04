@@ -16,7 +16,8 @@ import {
 import { Colors } from "@/constants/colors";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, AppState, AppStateStatus } from "react-native";
+import { NotificationService } from "@/services/NotificationService";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -103,6 +104,29 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
+
+  // Handle Notifications
+  useEffect(() => {
+    const setupNotifications = async () => {
+      const granted = await NotificationService.setup();
+      if (granted) {
+        await NotificationService.schedule12hReminder();
+      }
+    };
+
+    setupNotifications();
+
+    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      if (nextAppState === "active") {
+        // App came to foreground, reset the 12h timer
+        NotificationService.schedule12hReminder();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   if (!fontsLoaded) return null;
 

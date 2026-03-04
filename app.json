@@ -48,7 +48,8 @@
           "photosPermission": "Allow Pepper World to access your photos.",
           "cameraPermission": "Allow Pepper World to use your camera."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -67,8 +68,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/8e9a8323-8999-4a92-af29-8a1982fd8416",
-       "fallbackToCacheTimeout": 0
-      
+      "fallbackToCacheTimeout": 3000
     }
   }
 }

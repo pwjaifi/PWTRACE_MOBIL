@@ -23,7 +23,8 @@ import { FormSubmitButton } from "@/components/forms/FormSubmitButton";
 import { LocalStorageService } from "@/services/LocalStorageService";
 import { useData } from "@/contexts/DataContext";
 import { LINES } from "@/models";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, Pressable as RNPressable } from "react-native";
+import { QRScannerModal } from "@/components/qr/QRScannerModal";
 import type { SeverityLevel } from "@/models";
 
 const SEVERITY_OPTIONS = [
@@ -49,7 +50,15 @@ export default function VirusScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const { isPreloaded } = useData();
+
+  const handleScanSuccess = ({ farmId, secteurId, serreId }: { farmId: string, secteurId: string, serreId: string }) => {
+    setFarmId(farmId);
+    setSecteurId(secteurId);
+    setSerreId(serreId);
+    setErrors(prev => ({ ...prev, farm: "", secteur: "", serre: "" }));
+  };
 
   if (!isPreloaded) {
     return (
@@ -165,6 +174,20 @@ export default function VirusScreen() {
           Observation Virus
         </Text>
       </View>
+
+      <Pressable
+        style={styles.scanButton}
+        onPress={() => setShowScanner(true)}
+      >
+        <Ionicons name="qr-code-outline" size={24} color={Colors.white} />
+        <Text style={styles.scanButtonText}>Scanner le QR Code de la Serre</Text>
+      </Pressable>
+
+      <QRScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
 
       <FormSection title="Localisation">
         <FarmSecteurSerreSelect
@@ -287,6 +310,21 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+  },
+  scanButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    gap: 10,
+    marginTop: 8,
+  },
+  scanButtonText: {
+    color: Colors.white,
+    fontSize: 15,
     fontFamily: "Poppins_600SemiBold",
   },
 });

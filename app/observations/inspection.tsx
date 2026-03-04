@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { QRScannerModal } from "@/components/qr/QRScannerModal";
 import * as Crypto from "expo-crypto";
 import { Colors } from "@/constants/colors";
 import { FormSection } from "@/components/forms/FormSection";
@@ -413,6 +414,12 @@ export default function InspectionScreen() {
 
   // State for success confirmation
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+
+  const handleScanSuccess = useCallback(({ serreId }: { farmId: string, secteurId: string, serreId: string }) => {
+    setSerreId(serreId);
+    setErrors(prev => ({ ...prev, serre: "" }));
+  }, []);
 
   const weekNumber = useMemo(() => getWeekNumber(observationDate), [observationDate]);
 
@@ -578,6 +585,20 @@ export default function InspectionScreen() {
         </Text>
       </View>
 
+      <Pressable
+        style={styles.scanButton}
+        onPress={() => setShowScanner(true)}
+      >
+        <Ionicons name="qr-code-outline" size={24} color={Colors.white} />
+        <Text style={styles.scanButtonText}>Scanner le QR Code de la Serre</Text>
+      </Pressable>
+
+      <QRScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
+
       <FormSection title="Informations générales">
         <View style={styles.dateAndWeekRow}>
           <View style={{ flex: 1 }}>
@@ -693,6 +714,21 @@ const styles = StyleSheet.create({
   },
   badgeDot: { width: 8, height: 8, borderRadius: 4 },
   categoryLabel: { fontSize: 13, fontFamily: "Poppins_600SemiBold" },
+  scanButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    gap: 10,
+    marginTop: 8,
+  },
+  scanButtonText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontFamily: "Poppins_600SemiBold",
+  },
   autoInfoRow: {
     flexDirection: "row",
     backgroundColor: Colors.successLight,
